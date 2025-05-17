@@ -5,19 +5,19 @@ import hashlib
 import requests
 import urllib3
 
-# Отключаем предупреждения о self-signed сертификате
+# Disable self-signed certificate warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# === Чтение переменных окружения ===
+# === Read environment variables ===
 USERNAME = os.environ.get("USERNAME", "uxpadmin")
 PASSWORD = os.environ.get("PASSWORD", "uxpadminp")
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://192.168.99.185:4000")
 CLIENT_ID = os.environ.get("CLIENT_ID", "uxp-ss-ui")
 SECURITY_SERVER_ADDRESS = os.environ.get("SECURITY_SERVER_ADDRESS", "https://192.168.99.185:4000")
-TOKEN_CREDENTIALS = os.environ.get("TOKEN_CREDENTIALS", "0:1234")  # Пример: "0:1234,1:5678"
+TOKEN_CREDENTIALS = os.environ.get("TOKEN_CREDENTIALS", "")  # Format: "0:1234,1:5678"
 MAX_RETRIES = int(os.environ.get("OAUTH_RETRIES", "3"))
 
-# === Очистка переменных окружения ===
+# === Clear sensitive environment variables ===
 for var in [
     "USERNAME", "PASSWORD", "REDIRECT_URI", "CLIENT_ID",
     "SECURITY_SERVER_ADDRESS", "TOKEN_CREDENTIALS", "OAUTH_RETRIES"
@@ -29,6 +29,7 @@ API_URL = f"{SECURITY_SERVER_ADDRESS}/api/v1"
 
 
 def get_oauth_token(username, password, redirect_uri, client_id, auth_api_url):
+    # Step 1: Get temporary token
     login_resp = requests.post(
         f"{auth_api_url}/login",
         json={"username": username, "password": password},
@@ -38,11 +39,13 @@ def get_oauth_token(username, password, redirect_uri, client_id, auth_api_url):
     login_resp.raise_for_status()
     access_token = login_resp.json()["accessToken"]
 
+    # Step 2: Generate code_verifier and code_challenge
     code_verifier = base64.urlsafe_b64encode(os.urandom(64)).decode("utf-8").rstrip("=")
     code_challenge = base64.urlsafe_b64encode(
         hashlib.sha256(code_verifier.encode("utf-8")).digest()
     ).decode("utf-8").rstrip("=")
 
+    # Step 3: Get authorization code
     params = {
         "response_type": "code",
         "scope": "uxp_roles",
@@ -63,6 +66,7 @@ def get_oauth_token(username, password, redirect_uri, client_id, auth_api_url):
     auth_data = auth_resp.json()
     authorization_code = auth_data["code"]
 
+    # Step 4: Exchange authorization code for access token
     token_resp = requests.post(
         f"{auth_api_url}/oauth2/token",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
@@ -78,7 +82,7 @@ def get_oauth_token(username, password, redirect_uri, client_id, auth_api_url):
     )
     token_resp.raise_for_status()
     final_access_token = token_resp.json()["access_token"]
-    print("✅ Access token для доступа к API:")
+    print("✅ Access token acquired:")
     print(final_access_token)
     return final_access_token
 
@@ -87,13 +91,13 @@ def get_oauth_token_with_retry(username, password, redirect_uri, client_id, auth
     last_exception = None
     for attempt in range(1, retries + 1):
         try:
-            print(f"🔁 Попытка авторизации {attempt}/{retries}...")
+            print(f"🔁 Authorization attempt {attempt}/{retries}...")
             return get_oauth_token(username, password, redirect_uri, client_id, auth_api_url)
         except Exception as e:
-            print(f"⚠️ Ошибка авторизации: {e}")
+            print(f"⚠️ Authorization error: {e}")
             last_exception = e
             time.sleep(1)
-    raise RuntimeError(f"❌ Не удалось получить токен после {retries} попыток") from last_exception
+    raise RuntimeError(f"❌ Failed to acquire token after {retries} attempts") from last_exception
 
 
 def login_token(api_auth_token, api_uri, token_number, token_pass):
@@ -141,7 +145,7 @@ def logout_oauth_token(api_auth_token, auth_api_url):
     return "🔒 API access token logged out successfully"
 
 
-# === Основной запуск ===
+# === Main execution ===
 
 uxp_login_token = ""
 
@@ -149,29 +153,30 @@ try:
     uxp_login_token = get_oauth_token_with_retry(
         USERNAME, PASSWORD, REDIRECT_URI, CLIENT_ID, AUTH_API_URL, retries=MAX_RETRIES
     )
-    # Парсим TOKEN_CREDENTIALS
+
+    # Parse token credentials from environment
     token_map = {}
     for pair in TOKEN_CREDENTIALS.split(","):
         if ":" in pair:
             token_id, token_pass = pair.split(":", 1)
             token_map[int(token_id.strip())] = token_pass.strip()
 
-    # Пытаемся залогиниться под каждым токеном
+    # Attempt login for each token
     for token_id, token_pass in token_map.items():
         try:
             result = login_token(uxp_login_token, API_URL, token_id, token_pass)
-            print(f"✅ Token {token_id} login success:")
+            print(f"✅ Token {token_id} login successful:")
             print(result)
         except Exception as err:
             print(f"❌ Token {token_id} login failed:")
             print(err)
 
 except Exception as err:
-    print(f"‼️ Ошибка в процессе получения или использования токена: {err}")
+    print(f"‼️ Error during token acquisition or login: {err}")
 
 if uxp_login_token:
     try:
         logout_result = logout_oauth_token(uxp_login_token, AUTH_API_URL)
         print(logout_result)
     except Exception as err:
-        print(f"‼️ Ошибка при logout: {err}")
+        print(f"‼️ Error during logout: {err}")
