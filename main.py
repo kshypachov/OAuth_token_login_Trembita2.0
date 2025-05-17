@@ -4,25 +4,25 @@ import base64
 import hashlib
 import requests
 import urllib3
-
+import json
 # Disable self-signed certificate warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# === Read environment variables ===
-USERNAME = os.environ.get("USERNAME", "uxpadmin")
-PASSWORD = os.environ.get("PASSWORD", "uxpadminp")
-REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://192.168.99.185:4000")
-CLIENT_ID = os.environ.get("CLIENT_ID", "uxp-ss-ui")
-SECURITY_SERVER_ADDRESS = os.environ.get("SECURITY_SERVER_ADDRESS", "https://192.168.99.185:4000")
-TOKEN_CREDENTIALS = os.environ.get("TOKEN_CREDENTIALS", "0:1234")  # Format: "0:1234,1:5678"
-MAX_RETRIES = int(os.environ.get("OAUTH_RETRIES", "3"))
+CONFIG_PATH = "/run/secrets/trembita.io/autologin.secret.json"
 
-# === Clear sensitive environment variables ===
-for var in [
-    "USERNAME", "PASSWORD", "REDIRECT_URI", "CLIENT_ID",
-    "SECURITY_SERVER_ADDRESS", "TOKEN_CREDENTIALS", "OAUTH_RETRIES"
-]:
-    os.environ.clear()
+try:
+    with open(CONFIG_PATH, "r", encoding="utf-8") as f:
+        config = json.load(f)
+except Exception as e:
+    raise RuntimeError(f"Failed to load configuration from {CONFIG_PATH}: {e}")
+
+USERNAME = config.get("USERNAME", "uxpadmin")
+PASSWORD = config.get("PASSWORD", "uxpadminp")
+REDIRECT_URI = config.get("REDIRECT_URI", "https://192.168.99.185:4000")
+CLIENT_ID = config.get("CLIENT_ID", "uxp-ss-ui")
+SECURITY_SERVER_ADDRESS = config.get("SECURITY_SERVER_ADDRESS", "https://192.168.99.185:4000")
+TOKEN_CREDENTIALS = config.get("TOKEN_CREDENTIALS", "")  # Format: "0:1234,1:5678"
+MAX_RETRIES = int(config.get("OAUTH_RETRIES", "3"))
 
 AUTH_API_URL = f"{SECURITY_SERVER_ADDRESS}/auth-api/v1"
 API_URL = f"{SECURITY_SERVER_ADDRESS}/api/v1"
