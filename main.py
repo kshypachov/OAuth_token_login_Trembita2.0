@@ -22,7 +22,7 @@ for var in [
     "USERNAME", "PASSWORD", "REDIRECT_URI", "CLIENT_ID",
     "SECURITY_SERVER_ADDRESS", "TOKEN_CREDENTIALS", "OAUTH_RETRIES"
 ]:
-    os.environ.pop(var, None)
+    os.environ.clear()
 
 AUTH_API_URL = f"{SECURITY_SERVER_ADDRESS}/auth-api/v1"
 API_URL = f"{SECURITY_SERVER_ADDRESS}/api/v1"
