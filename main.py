@@ -14,7 +14,7 @@ PASSWORD = os.environ.get("PASSWORD", "uxpadminp")
 REDIRECT_URI = os.environ.get("REDIRECT_URI", "https://192.168.99.185:4000")
 CLIENT_ID = os.environ.get("CLIENT_ID", "uxp-ss-ui")
 SECURITY_SERVER_ADDRESS = os.environ.get("SECURITY_SERVER_ADDRESS", "https://192.168.99.185:4000")
-TOKEN_CREDENTIALS = os.environ.get("TOKEN_CREDENTIALS", "")  # Format: "0:1234,1:5678"
+TOKEN_CREDENTIALS = os.environ.get("TOKEN_CREDENTIALS", "0:1234")  # Format: "0:1234,1:5678"
 MAX_RETRIES = int(os.environ.get("OAUTH_RETRIES", "3"))
 
 # === Clear sensitive environment variables ===
@@ -173,6 +173,7 @@ try:
 
 except Exception as err:
     print(f"‼️ Error during token acquisition or login: {err}")
+    exit(1)
 
 if uxp_login_token:
     try:
@@ -180,3 +181,5 @@ if uxp_login_token:
         print(logout_result)
     except Exception as err:
         print(f"‼️ Error during logout: {err}")
+        exit(2)
+exit(0)
