@@ -27,6 +27,20 @@ MAX_RETRIES = int(config.get("OAUTH_RETRIES", "3"))
 AUTH_API_URL = f"{SECURITY_SERVER_ADDRESS}/auth-api/v1"
 API_URL = f"{SECURITY_SERVER_ADDRESS}/api/v1"
 
+def wait_for_auth_api_ready(url, interval=5, max_attempts=60):
+    print(f"🕓 Waiting for auth API to become ready at {url}...")
+    for attempt in range(1, max_attempts + 1):
+        try:
+            resp = requests.get(url, verify=False)
+            if not (500 <= resp.status_code < 600):
+                print(f"✅ Auth API is ready (HTTP {resp.status_code})")
+                return
+            else:
+                print(f"🔁 Attempt {attempt}: got {resp.status_code}, retrying...")
+        except Exception as e:
+            print(f"🔁 Attempt {attempt}: error: {e}, retrying...")
+        time.sleep(interval)
+    raise TimeoutError(f"❌ Auth API did not become ready after {max_attempts} attempts")
 
 def get_oauth_token(username, password, redirect_uri, client_id, auth_api_url):
     # Step 1: Get temporary token
@@ -150,6 +164,14 @@ def logout_oauth_token(api_auth_token, auth_api_url):
 uxp_login_token = ""
 
 try:
+
+    # WAIT for /auth-api/v1/oauth2/token to stop returning 5xx
+    wait_for_auth_api_ready(f"{AUTH_API_URL}/oauth2/token")
+
+    # Wait 15 seconds more before starting login
+    print("⏳ Auth API ready. Waiting 15 seconds before login...")
+    time.sleep(15)
+
     uxp_login_token = get_oauth_token_with_retry(
         USERNAME, PASSWORD, REDIRECT_URI, CLIENT_ID, AUTH_API_URL, retries=MAX_RETRIES
     )
@@ -170,6 +192,7 @@ try:
         except Exception as err:
             print(f"❌ Token {token_id} login failed:")
             print(err)
+            exit(3)
 
 except Exception as err:
     print(f"‼️ Error during token acquisition or login: {err}")
